@@ -11,8 +11,7 @@
     "start:docker": "docker-compose pull && docker-compose up --remove-orphans",
     "remove:.data": "yes | sudo rm -r .data/ && docker rm `sudo docker ps -aqf \"name=^subql-xcm-moonriver_postgres_1$\"`"
   },
-  "homepage": "",
-  "repository": "",
+  "repository": "https://github.com/serkul/subql-xcm-moonriver",
   "files": [
     "dist",
     "schema.graphql",

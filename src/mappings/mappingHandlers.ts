@@ -130,7 +130,11 @@ async function decodeOutboundXcmp(
           transfer.fromAddress = account;
           transfer.toParachainId = extra.interior.x2[0].parachain;
           transfer.assetParachainId = "NA";
-          transfer.assetId = otherReserve.otherReserve.toString();
+          if (otherReserve.otherReserve) {
+            transfer.assetId = otherReserve.otherReserve.toString();
+          } else {
+            transfer.assetId = "null";
+          }
         }
       });
       break;
