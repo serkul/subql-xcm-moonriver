@@ -2,6 +2,8 @@ import { SubstrateExtrinsic, SubstrateEvent } from "@subql/types";
 import { XCMTransfer } from "../types";
 import { blake2AsU8a, blake2AsHex } from "@polkadot/util-crypto";
 import { u8aToHex } from "@polkadot/util";
+import { intructionsFromXcmU8Array } from "../common/instructions-from-xcmp-msg-u8array";
+import { parceXcmpInstrustions } from "../common/parce-xcmp-instructions";
 
 // Fill with all ids and move to separate file
 const chainIDs = {
@@ -9,6 +11,52 @@ const chainIDs = {
   Moonriver: "2023",
 };
 
+export async function handleDmpParaEvent(event: SubstrateEvent): Promise<void> {
+  const transfer = XCMTransfer.create({
+    id: `${event.block.block.header.number.toNumber()}-${event.idx}`,
+    warnings: "",
+    assetId: [],
+    amount: [],
+    toAddress: "",
+    amountIssued: [],
+    assetIdIssued: [],
+    xcmpTransferStatus: [],
+  });
+  transfer.blockNumber = event.block.block.header.number.toBigInt();
+  transfer.timestamp = event.block.timestamp.toISOString();
+
+  transfer.xcmpMessageHash =
+    event.block.events[event.idx].event.data[0].toString();
+  transfer.xcmpMessageStatus = "DMP received";
+  const dmpParaExtrinsic: any = event.extrinsic.extrinsic; // parachainSystem.setValidationData
+  dmpParaExtrinsic.method.args[0].downwardMessages.forEach(
+    ({ sentAt, msg }) => {
+      const messageHash = blake2AsHex(Uint8Array.from(msg));
+      if (messageHash == transfer.xcmpMessageHash) {
+        const instructions = intructionsFromXcmU8Array(msg, api);
+        if (typeof instructions == "string") {
+          transfer.warnings += instructions;
+        } else {
+          parceXcmpInstrustions(instructions, transfer);
+        }
+      }
+    }
+  );
+  // Find and parce assets.Issued event to confirm assets transder
+  // and get the final amount deposited
+  const assetsIssueEvents: any[] = event.block.events.filter(
+    (el) => el.event.section == "assets" && el.event.method == "Issued"
+  );
+  assetsIssueEvents.forEach(({ event }) => {
+    if (event.toHuman().data.owner.toLowerCase() === transfer.toAddress) {
+      transfer.xcmpTransferStatus.push("issued");
+      transfer.amountIssued.push(event.toHuman().data.totalSupply);
+      transfer.assetIdIssued.push(event.toHuman().data.assetId);
+    }
+  });
+
+  await transfer.save();
+}
 export async function handleEvent(event: SubstrateEvent): Promise<void> {
   const transfer = new XCMTransfer(
     `${event.block.block.header.number.toNumber()}-${event.idx}`
@@ -32,23 +80,23 @@ export async function handleEvent(event: SubstrateEvent): Promise<void> {
   } else {
     transfer.xcmpMessageStatus = xcmpExtrinsicsWithEvents[0].status;
     transfer.xcmpMessageHash = xcmpExtrinsicsWithEvents[0].hash;
-  }
 
-  switch (xcmpExtrinsicsWithEvents[0].status) {
-    case "received":
-      await decodeInboundXcmp(xcmpExtrinsicsWithEvents[0], api, transfer);
-      break;
-    case "sent":
-      await decodeOutboundXcmp(
-        xcmpExtrinsicsWithEvents[0],
-        api,
-        chainIDs,
-        transfer
-      );
-      break;
-  }
+    switch (xcmpExtrinsicsWithEvents[0].status) {
+      case "received":
+        await decodeInboundXcmp(xcmpExtrinsicsWithEvents[0], api, transfer);
+        break;
+      case "sent":
+        await decodeOutboundXcmp(
+          xcmpExtrinsicsWithEvents[0],
+          api,
+          chainIDs,
+          transfer
+        );
+        break;
+    }
 
-  await transfer.save();
+    await transfer.save();
+  }
 }
 
 function mapXcmpEventsToExtrinsics(allBlockExtrinsics, allBlockEvents) {

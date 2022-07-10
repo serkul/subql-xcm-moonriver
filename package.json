@@ -9,7 +9,7 @@
     "test": "jest",
     "codegen": "./node_modules/.bin/subql codegen",
     "start:docker": "docker-compose pull && docker-compose up --remove-orphans",
-    "remove:.data": "yes | sudo rm -r .data/ && docker rm `sudo docker ps -aqf \"name=^subql-xcm-moonriver_postgres_1$\"`"
+    "remove:.data": "yes | sudo rm -r .data/ && docker rm `sudo docker ps -aqf \"name=^subql-moonriver_postgres_1$\"`"
   },
   "repository": "https://github.com/serkul/subql-xcm-moonriver",
   "files": [
