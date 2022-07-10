@@ -21,7 +21,7 @@ network:
     file: ./dist/chaintypes.js
 dataSources:
   - kind: substrate/Runtime
-    startBlock: 1655874
+    startBlock: 1655886
     mapping:
       file: ./dist/index.js
       handlers:
@@ -34,3 +34,8 @@ dataSources:
           filter:
             module: dmpQueue
             method: ExecutedDownward
+        - handler: handleUmpParaEvent
+          kind: substrate/EventHandler
+          filter:
+            module: xTokens
+            method: Transferred    

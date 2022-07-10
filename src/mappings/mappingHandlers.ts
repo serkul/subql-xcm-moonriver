@@ -4,12 +4,47 @@ import { blake2AsU8a, blake2AsHex } from "@polkadot/util-crypto";
 import { u8aToHex } from "@polkadot/util";
 import { intructionsFromXcmU8Array } from "../common/instructions-from-xcmp-msg-u8array";
 import { parceXcmpInstrustions } from "../common/parce-xcmp-instructions";
-
+import { TextEncoder } from "@polkadot/x-textencoder";
 // Fill with all ids and move to separate file
 const chainIDs = {
   Karura: "2000",
   Moonriver: "2023",
 };
+
+export async function handleUmpParaEvent(event: SubstrateEvent): Promise<void> {
+  const transfer = XCMTransfer.create({
+    id: `${event.block.block.header.number.toNumber()}-${event.idx}`,
+    warnings: "",
+    assetId: [],
+    amount: [],
+    toAddress: "",
+  });
+  transfer.blockNumber = event.block.block.header.number.toBigInt();
+  transfer.timestamp = event.block.timestamp.toISOString();
+  const {
+    sender,
+    currencyId,
+    amount,
+    dest,
+  }: { sender: string; currencyId: any; amount: string; dest: any } =
+    event.block.events[event.idx].event.data.toHuman() as any;
+  transfer.fromAddress = sender;
+  transfer.assetId.push(currencyId.OtherReserve);
+  transfer.amount.push(amount.replace(/,/g, ""));
+  transfer.toParachainId = dest.parents;
+  transfer.toAddress = dest.interior.X1.AccountId32.id;
+  transfer.xcmpMessageStatus = "UMP sent";
+  // calculate "custom" hash for UMP due to lack ot the "real" one
+  // and I don't know how to get the byte representation of XCMP message
+  transfer.xcmpMessageHash = blake2AsHex(
+    new Uint8Array([
+      ...new TextEncoder().encode(amount),
+      ...new TextEncoder().encode(JSON.stringify(dest.interior, undefined)),
+    ])
+  );
+
+  await transfer.save();
+}
 
 export async function handleDmpParaEvent(event: SubstrateEvent): Promise<void> {
   const transfer = XCMTransfer.create({
