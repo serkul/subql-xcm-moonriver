@@ -5,12 +5,12 @@ type XCMTransfer @entity {
   timestamp: String
 
   fromAddress: String
+  fromAddressSS58: String
   fromParachainId: String
-  fromAddressLocal: String
 
   toAddress: String!
+  toAddressSS58: String
   toParachainId: String
-  toAddressLocal: String
 
   assetParachainId: String
   assetId: [String]!  
