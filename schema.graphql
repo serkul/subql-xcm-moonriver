@@ -16,8 +16,8 @@ type XCMTransfer @entity {
   assetId: [String]!  
   amount: [String]!
 
-  assetIdIssued: [String]
-  amountIssued: [String]
+  assetIdTransferred: [String]
+  amountTransferred: [String]
   
   xcmpMessageHash: String
   xcmpMessageStatus: String

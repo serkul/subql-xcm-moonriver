@@ -53,8 +53,8 @@ export async function handleDmpParaEvent(event: SubstrateEvent): Promise<void> {
     assetId: [],
     amount: [],
     toAddress: "",
-    amountIssued: [],
-    assetIdIssued: [],
+    amountTransferred: [],
+    assetIdTransferred: [],
     xcmpTransferStatus: [],
   });
   transfer.blockNumber = event.block.block.header.number.toBigInt();
@@ -85,8 +85,8 @@ export async function handleDmpParaEvent(event: SubstrateEvent): Promise<void> {
   assetsIssueEvents.forEach(({ event }) => {
     if (event.toHuman().data.owner.toLowerCase() === transfer.toAddress) {
       transfer.xcmpTransferStatus.push("issued");
-      transfer.amountIssued.push(event.toHuman().data.totalSupply);
-      transfer.assetIdIssued.push(event.toHuman().data.assetId);
+      transfer.amountTransferred.push(event.toHuman().data.totalSupply);
+      transfer.assetIdTransferred.push(event.toHuman().data.assetId);
     }
   });
 
