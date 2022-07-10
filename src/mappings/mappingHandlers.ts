@@ -93,10 +93,13 @@ export async function handleDmpParaEvent(event: SubstrateEvent): Promise<void> {
   await transfer.save();
 }
 export async function handleEvent(event: SubstrateEvent): Promise<void> {
-  const transfer = new XCMTransfer(
-    `${event.block.block.header.number.toNumber()}-${event.idx}`
-  );
-  transfer.warnings = "";
+  const transfer = XCMTransfer.create({
+    id: `${event.block.block.header.number.toNumber()}-${event.idx}`,
+    warnings: "",
+    assetId: [],
+    amount: [],
+    toAddress: "",
+  });
   transfer.blockNumber = event.block.block.header.number.toBigInt();
   transfer.timestamp = event.block.timestamp.toISOString();
 
