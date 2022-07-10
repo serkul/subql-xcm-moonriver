@@ -13,16 +13,16 @@ type XCMTransfer @entity {
   toParachainId: String
 
   assetParachainId: String
-  assetId: [String]!  
-  amount: [String]!
+  assetId: [String!]!  
+  amount: [String!]!
 
   assetIdTransferred: [String]
   amountTransferred: [String]
   
   xcmpMessageHash: String
   xcmpMessageStatus: String
-  xcmpTransferStatus: [String]
+  xcmpTransferStatus: [String!]
    
-  xcmpInstructions: [String]
+  xcmpInstructions: [String!]
   warnings: String!
 }
