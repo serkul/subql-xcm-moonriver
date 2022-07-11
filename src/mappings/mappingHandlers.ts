@@ -5,6 +5,8 @@ import { u8aToHex } from "@polkadot/util";
 import { intructionsFromXcmU8Array } from "../common/instructions-from-xcmp-msg-u8array";
 import { parceXcmpInstrustions } from "../common/parce-xcmp-instructions";
 import { TextEncoder } from "@polkadot/x-textencoder";
+import { getApropriateSS58Address } from "../common/get-aprop-ss58-address";
+
 // Fill with all ids and move to separate file
 const chainIDs = {
   Karura: "2000",
@@ -31,8 +33,7 @@ export async function handleUmpParaEvent(event: SubstrateEvent): Promise<void> {
   transfer.fromAddress = sender;
   transfer.assetId.push(currencyId.OtherReserve);
   transfer.amount.push(amount.replace(/,/g, ""));
-  transfer.toParachainId = dest.parents;
-  transfer.toAddress = dest.interior.X1.AccountId32.id;
+  [transfer.toParachainId, transfer.toAddress] = parceInterior(dest.interior);
   transfer.xcmpMessageStatus = "UMP sent";
   // calculate "custom" hash for UMP due to lack ot the "real" one
   // and I don't know how to get the byte representation of XCMP message
@@ -43,6 +44,18 @@ export async function handleUmpParaEvent(event: SubstrateEvent): Promise<void> {
     ])
   );
 
+  // calculate SS58 addresses for given chains
+  const fromChainId = (await api.query.parachainInfo.parachainId())
+    .toString()
+    .replace(/,/g, "");
+  transfer.fromAddressSS58 = getApropriateSS58Address(
+    transfer.fromAddress,
+    fromChainId
+  );
+  transfer.toAddressSS58 = getApropriateSS58Address(
+    transfer.toAddress,
+    transfer.toParachainId
+  );
   await transfer.save();
 }
 
@@ -320,4 +333,28 @@ async function decodeInboundXcmp(xcmpExtrinsicWithEvents, apiAt, transfer) {
       }
     }
   );
+}
+
+function parceInterior(interior) {
+  let numOfJunctions: number;
+  let toChainId: string;
+  let innerLocation;
+  let toAddress: string;
+  [1, 2, 3, 4, 5].forEach((num) => {
+    if (interior.hasOwnProperty("X" + `${num}`)) {
+      numOfJunctions = num;
+    }
+  });
+  if (numOfJunctions == 1) {
+    toChainId = "0"; //relay chain
+    innerLocation = interior["X" + `${numOfJunctions}`];
+  } else {
+    console.log(numOfJunctions);
+    toChainId =
+      interior["X" + `${numOfJunctions}`][numOfJunctions - 2].Parachain;
+    innerLocation = interior["X" + `${numOfJunctions}`][numOfJunctions - 1];
+  }
+  toChainId = toChainId.replace(/,/g, "");
+  toAddress = innerLocation.AccountId32?.id ?? innerLocation.AccountKey20.key;
+  return [toChainId, toAddress];
 }
