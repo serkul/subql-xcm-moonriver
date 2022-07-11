@@ -10,7 +10,7 @@
     "codegen": "./node_modules/.bin/subql codegen",
     "start:docker": "docker-compose pull && docker-compose up --remove-orphans",
     "remove:.data": "yes | sudo rm -r .data/ && docker rm `sudo docker ps -aqf \"name=^subql-moonriver_postgres_1$\"`",
-    "devbuild": "cp -f ../common/instructions-from-xcmp-msg-u8array.ts ../common/parce-xcmp-instructions.ts ../common/get-aprop-ss58-address.ts ./src/common/ && subql build"
+    "devbuild": "cp -f ../common/instructions-from-xcmp-msg-u8array.ts ../common/parce-xcmp-instructions.ts ../common/get-aprop-ss58-address.ts ../common/parce-interior.ts ./src/common/ && subql build"
   },
   "repository": "https://github.com/serkul/subql-xcm-moonriver",
   "files": [

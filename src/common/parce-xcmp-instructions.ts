@@ -1,8 +1,11 @@
+import { parceInterior } from "./parce-interior";
+
 interface Transfer {
   warnings: string;
   assetId: string[];
   amount: string[];
   toAddress: string;
+  toParachainId: string;
 }
 export function parceXcmpInstrustions(instructions, transfer: Transfer) {
   // Check if xcmp version is 1, then parce the asset part
@@ -51,9 +54,14 @@ function parceV2V3Instruction(instructions, transfer: Transfer) {
           // can get weight limit and fee asset if needed
           break;
         case "DepositAsset":
-          transfer.toAddress =
-            instruction.DepositAsset.beneficiary.interior.X1.AccountId32?.id ??
-            instruction.DepositAsset.beneficiary.interior.X1.AccountKey20.key;
+          const parceInteriorRes = parceInterior(
+            instruction.DepositAsset.beneficiary.interior
+          );
+          if (typeof parceInteriorRes == "string") {
+            transfer.warnings += parceInterior;
+          } else {
+            [transfer.toParachainId, transfer.toAddress] = parceInteriorRes;
+          }
           break;
         default:
           transfer.warnings += ` - Unknown instruction name ${key}`;
