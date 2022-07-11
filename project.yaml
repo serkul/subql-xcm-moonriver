@@ -34,12 +34,12 @@ dataSources:
           filter:
             module: dmpQueue
             method: ExecutedDownward
-        - handler: handleUmpParaEvent #needs check to avoid indexis ounbound hrpm
+        - handler: handleUmpParaEvent #check is made inside handler to not repeat handleXcmpQueueModule
           kind: substrate/EventHandler
           filter:
             module: xTokens
             method: Transferred    
-        - handler: handleUmpParaEvent #needs check to avoid indexis ounbound hrpm
+        - handler: handleUmpParaEvent #check is made inside handler to not repeat handleXcmpQueueModule
           kind: substrate/EventHandler
           filter:
             module: xTokens

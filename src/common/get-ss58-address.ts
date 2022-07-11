@@ -16,10 +16,10 @@ export function getSS58AddressForChain(
     2090: 10041, //basilisk
   };
   if (!isAddress(address)) {
-    return [false, `${address} is not address`];
+    return [false, ` - ${address} is not address`];
   }
   if (!chainId.hasOwnProperty(chainId)) {
-    return [false, `unsupported chain ID: ${chainId}`];
+    return [false, ` - unsupported chain ID: ${chainId}`];
   }
   const addressByteLength = decodeAddress(address).byteLength;
   if (addressByteLength == 32) {
@@ -27,6 +27,6 @@ export function getSS58AddressForChain(
   } else if (addressByteLength == 20) {
     return [true, evmToAddress(address, chainIdPrefix[chainId])];
   } else {
-    return [false, "unknown address format"];
+    return [false, " - unknown address format"];
   }
 }

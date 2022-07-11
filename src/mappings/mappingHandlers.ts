@@ -7,69 +7,69 @@ import { parceXcmpInstrustions } from "../common/parce-xcmp-instructions";
 import { TextEncoder } from "@polkadot/x-textencoder";
 import { getSS58AddressForChain } from "../common/get-ss58-address";
 import { parceInterior } from "../common/parce-interior";
-// Fill with all ids and move to separate file
-const chainIDs = {
-  Karura: "2000",
-  Moonriver: "2023",
-};
 
 export async function handleUmpParaEvent(event: SubstrateEvent): Promise<void> {
-  const transfer = XCMTransfer.create({
-    id: `${event.block.block.header.number.toNumber()}-${event.idx}`,
-    warnings: "",
-    assetId: [],
-    amount: [],
-    toAddress: "",
-    toParachainId: "",
-  });
-  transfer.blockNumber = event.block.block.header.number.toBigInt();
-  transfer.timestamp = event.block.timestamp.toISOString();
-  transfer.xcmpMessageStatus = "UMP sent";
-  transfer.toParachainId = "0";
-  const {
-    sender,
-    currencyId,
-    amount,
-    dest,
-  }: { sender: string; currencyId: any; amount: string; dest: any } =
-    event.block.events[event.idx].event.data.toHuman() as any;
-  transfer.fromParachainId = (await api.query.parachainInfo.parachainId())
-    .toString()
-    .replace(/,/g, "");
-  transfer.fromAddress = sender;
-  transfer.assetId.push(currencyId.OtherReserve);
-  transfer.amount.push(amount.replace(/,/g, ""));
-  // Extract destination address from XcmpMultilocation
-  // no need for chain Id, we know already that it goues to relaychain
-  const parceInteriorRes = parceInterior(dest.interior);
-  if (typeof parceInteriorRes == "string") {
-    transfer.warnings += parceInteriorRes;
-  } else {
-    transfer.toAddress = parceInteriorRes[1];
+  const xcmpMessageSentEvent: any[] = event.block.events.filter(
+    (el) =>
+      el.event.section == "xcmpQueue" && el.event.method == "XcmpMessageSent"
+  );
+  // Skip handling event, because it is handled in handleXcmpQueueModule
+  if (!(xcmpMessageSentEvent.length > 0)) {
+    const transfer = XCMTransfer.create({
+      id: `${event.block.block.header.number.toNumber()}-${event.idx}`,
+      warnings: "",
+      assetId: [],
+      amount: [],
+      toAddress: "",
+      toParachainId: "",
+    });
+    transfer.blockNumber = event.block.block.header.number.toBigInt();
+    transfer.timestamp = event.block.timestamp.toISOString();
+    transfer.xcmpMessageStatus = "UMP sent";
+    const { sender, currencyId, amount, dest } = event.block.events[
+      event.idx
+    ].event.data.toHuman() as any;
+    const multiAssetsTrue =
+      event.block.events[event.idx].event.method == "TransferredMultiAssets";
+    parcexTokenTransfer(
+      sender,
+      currencyId,
+      amount,
+      dest,
+      multiAssetsTrue,
+      transfer
+    );
+
+    transfer.fromParachainId = (await api.query.parachainInfo.parachainId())
+      .toString()
+      .replace(/,/g, "");
+    // overwrite if needed
+    // transfer.toParachainId = "0";
+
+    // calculate "custom" hash for UMP due to lack ot the "real" one
+    // and I don't know how to get the byte representation of XCMP message
+    transfer.xcmpMessageHash = blake2AsHex(
+      new Uint8Array([
+        ...new TextEncoder().encode(amount),
+        ...new TextEncoder().encode(JSON.stringify(dest.interior, undefined)),
+      ])
+    );
+
+    // calculate SS58 addresses for given chains
+    const [ansFrom, addressFrom] = getSS58AddressForChain(
+      transfer.fromAddress,
+      transfer.fromParachainId
+    );
+    if (ansFrom) transfer.fromAddressSS58 = addressFrom;
+
+    const [ansTo, addressTo] = getSS58AddressForChain(
+      transfer.toAddress,
+      transfer.toParachainId
+    );
+    if (ansTo) transfer.toAddressSS58 = addressTo;
+
+    await transfer.save();
   }
-  // calculate "custom" hash for UMP due to lack ot the "real" one
-  // and I don't know how to get the byte representation of XCMP message
-  transfer.xcmpMessageHash = blake2AsHex(
-    new Uint8Array([
-      ...new TextEncoder().encode(amount),
-      ...new TextEncoder().encode(JSON.stringify(dest.interior, undefined)),
-    ])
-  );
-
-  // calculate SS58 addresses for given chains
-  const [ansFrom, addressFrom] = getSS58AddressForChain(
-    transfer.fromAddress,
-    transfer.fromParachainId
-  );
-  if (ansFrom) transfer.fromAddressSS58 = addressFrom;
-
-  const [ansTo, addressTo] = getSS58AddressForChain(
-    transfer.toAddress,
-    transfer.toParachainId
-  );
-  if (ansTo) transfer.toAddressSS58 = addressTo;
-
-  await transfer.save();
 }
 
 export async function handleDmpParaEvent(event: SubstrateEvent): Promise<void> {
@@ -171,16 +171,11 @@ export async function handleXcmpQueueModule(
       transfer.xcmpMessageHash = xcmpExtrinsicWithEvents.hash;
 
       switch (xcmpExtrinsicWithEvents.status) {
-        case "received":
+        case "HRMP received":
           await decodeInboundXcmp(xcmpExtrinsicWithEvents, api, transfer);
           break;
-        case "sent":
-          await decodeOutboundXcmp(
-            xcmpExtrinsicWithEvents,
-            api,
-            chainIDs,
-            transfer
-          );
+        case "HRMP sent":
+          await decodeOutboundXcmp(xcmpExtrinsicWithEvents, api, transfer);
           break;
       }
     }
@@ -188,60 +183,40 @@ export async function handleXcmpQueueModule(
   }
 }
 
-async function decodeOutboundXcmp(
-  xcmpExtrinsicWithEvents,
-  apiAt,
-  chainIDs,
-  transfer
-) {
+async function decodeOutboundXcmp(xcmpExtrinsicWithEvents, apiAt, transfer) {
   transfer.fromParachainId = (
     await apiAt.query.parachainInfo.parachainId()
   ).toString();
-  switch (transfer.fromParachainId) {
-    case chainIDs.Karura:
-      xcmpExtrinsicWithEvents.events.forEach(({ event }) => {
-        if (
-          event.section == "xTokens" &&
-          event.method == "TransferredMultiAssets"
-        ) {
-          const [account, otherReserve, amount, extra] =
-            event.data.toJSON() as any; //ts as any
-          // console.log(extra.interior.x2[1].accountKey20.key);
-          transfer.amount = amount.fun.fungible.toString();
-          transfer.toAddress = extra.interior.x2[1].accountKey20.key;
-          transfer.fromAddress = account;
-          transfer.toParachainId = extra.interior.x2[0].parachain.toString();
-          transfer.assetParachainId =
-            amount.id.concrete.interior.x2[0].parachain.toString();
-          transfer.assetId = amount.id.concrete.interior.x2[1].generalKey;
-        }
-      });
-      break;
-    case chainIDs.Moonriver:
-      xcmpExtrinsicWithEvents.events.forEach(({ event }) => {
-        if (event.section == "xTokens" && event.method == "Transferred") {
-          const [account, otherReserve, amount, extra] =
-            event.data.toJSON() as any;
-          console.log(otherReserve.otherReserve);
+  xcmpExtrinsicWithEvents.events.forEach(({ event }) => {
+    if (
+      event.section == "xTokens" &&
+      (event.method == "TransferredMultiAssets" ||
+        event.method == "Transferred")
+    ) {
+      const { sender, currencyId, amount, dest } = event.data.toHuman() as any;
 
-          transfer.amount = amount.toString();
-          transfer.toAddress = extra.interior.x2[1].accountId32.id;
-          transfer.fromAddress = account;
-          transfer.toParachainId = extra.interior.x2[0].parachain;
-          transfer.assetParachainId = "NA";
-          if (otherReserve.otherReserve) {
-            transfer.assetId = otherReserve.otherReserve.toString();
-          } else {
-            transfer.assetId = "null";
-          }
-        }
-      });
-      break;
-    default:
-      transfer.warnings +=
-        " - decodeOutboundXcmp format is not known for parachain: " +
-        transfer.fromParachainId;
-  }
+      parcexTokenTransfer(
+        sender,
+        currencyId,
+        amount,
+        dest,
+        event.method == "TransferredMultiAssets",
+        transfer
+      );
+      // calculate SS58 addresses for given chains
+      const [ansFrom, addressFrom] = getSS58AddressForChain(
+        transfer.fromAddress,
+        transfer.fromParachainId
+      );
+      if (ansFrom) transfer.fromAddressSS58 = addressFrom;
+
+      const [ansTo, addressTo] = getSS58AddressForChain(
+        transfer.toAddress,
+        transfer.toParachainId
+      );
+      if (ansTo) transfer.toAddressSS58 = addressTo;
+    }
+  });
 }
 
 async function decodeInboundXcmp(xcmpExtrinsicWithEvents, apiAt, transfer) {
@@ -288,6 +263,33 @@ async function decodeInboundXcmp(xcmpExtrinsicWithEvents, apiAt, transfer) {
       }
     }
   );
+}
+
+function parcexTokenTransfer(
+  sender,
+  currencyId,
+  amount,
+  dest,
+  multiAssetsTrue,
+  transfer
+) {
+  transfer.fromAddress = sender;
+  if (multiAssetsTrue) {
+    transfer.assetId.push(
+      JSON.stringify(currencyId[0].id.concrete.interior, undefined, 0)
+    );
+    transfer.amount.push(currencyId[0].fun.fungible);
+  } else {
+    transfer.assetId.push(JSON.stringify(currencyId, undefined, 0));
+    transfer.amount.push(amount.toString().replace(/,/g, ""));
+  }
+  // Extract destination address from XcmpMultilocation
+  const parceInteriorRes = parceInterior(dest.interior);
+  if (typeof parceInteriorRes == "string") {
+    transfer.warnings += parceInteriorRes;
+  } else {
+    [transfer.toParachainId, transfer.toAddress] = parceInteriorRes;
+  }
 }
 
 function mapXcmpEventsToExtrinsics(allBlockExtrinsics, allBlockEvents) {
