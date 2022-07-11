@@ -21,11 +21,11 @@ network:
     file: ./dist/chaintypes.js
 dataSources:
   - kind: substrate/Runtime
-    startBlock: 1655874
+    startBlock: 1655170
     mapping:
       file: ./dist/index.js
       handlers:
-        - handler: handleEvent
+        - handler: handleXcmpQueueModule
           kind: substrate/EventHandler
           filter:
             module: xcmpQueue
@@ -34,8 +34,13 @@ dataSources:
           filter:
             module: dmpQueue
             method: ExecutedDownward
-        - handler: handleUmpParaEvent
+        - handler: handleUmpParaEvent #needs check to avoid indexis ounbound hrpm
           kind: substrate/EventHandler
           filter:
             module: xTokens
             method: Transferred    
+        - handler: handleUmpParaEvent #needs check to avoid indexis ounbound hrpm
+          kind: substrate/EventHandler
+          filter:
+            module: xTokens
+            method: TransferMultiAssets    

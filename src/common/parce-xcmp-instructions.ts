@@ -54,13 +54,28 @@ function parceV2V3Instruction(instructions, transfer: Transfer) {
           // can get weight limit and fee asset if needed
           break;
         case "DepositAsset":
-          const parceInteriorRes = parceInterior(
+          let parceRes1 = parceInterior(
             instruction.DepositAsset.beneficiary.interior
           );
-          if (typeof parceInteriorRes == "string") {
-            transfer.warnings += parceInterior;
+          if (typeof parceRes1 == "string") {
+            transfer.warnings += parceRes1;
+          } else if (parceRes1[0] != "0") {
+            transfer.toParachainId = parceRes1[0];
           } else {
-            [transfer.toParachainId, transfer.toAddress] = parceInteriorRes;
+            transfer.toAddress = parceRes1[1];
+          }
+          break;
+        case "DepositReserveAsset":
+          let parceRes2 = parceInterior(
+            instruction.DepositReserveAsset.xcm[1].DepositAsset.beneficiary
+              .interior
+          );
+          if (typeof parceRes2 == "string") {
+            transfer.warnings += parceRes2;
+          } else if (parceRes2[0] != "0") {
+            transfer.toParachainId = parceRes2[0];
+          } else {
+            transfer.toAddress = parceRes2[1];
           }
           break;
         default:

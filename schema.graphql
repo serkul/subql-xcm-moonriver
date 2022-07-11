@@ -12,7 +12,6 @@ type XCMTransfer @entity {
   toAddressSS58: String
   toParachainId: String!
 
-  assetParachainId: String
   assetId: [String]!  
   amount: [String]!
 

@@ -1,5 +1,5 @@
 export function parceInterior(interior) {
-  let numOfJunctions: number = 0;
+  let numOfJunctions: number = -1;
   let toChainId: string;
   let innerLocation;
   let toAddress: string;
@@ -8,11 +8,13 @@ export function parceInterior(interior) {
       numOfJunctions = num;
     }
   });
-  if (numOfJunctions == 0) {
-    return "failed to parce interior";
+  if (numOfJunctions == -1) {
+    return "unknown number of junctions";
   } else {
+    //either relay chain or interior parachain location,
+    // so if returns "0" don't overwrite toChainId
     if (numOfJunctions == 1) {
-      toChainId = "0"; //relay chain
+      toChainId = "0";
       innerLocation = interior["X" + `${numOfJunctions}`];
     } else {
       console.log(numOfJunctions);
